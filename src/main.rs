@@ -116,7 +116,7 @@ impl Chip8 {
     }
 
 
-    fn emulate_cycle (&mut self) {
+    fn emulate_cycle (&mut self) -> Result<(), &'static str> {
         // fetch opcode
         self.opcode =
             (self.memory[self.pc as usize    ] as u16) << 8 |
@@ -142,6 +142,7 @@ impl Chip8 {
                 self.opcode,
                 self.pc,
                 self.pc - PROG_ROM_RAM_BEGIN);
+            return Err("Unsupported opcode.");
         }
 
         // update timers
@@ -153,6 +154,8 @@ impl Chip8 {
             self.sound_timer -= 1;
             println!("  -- beep! --  ");  // temporary
         }
+
+        Ok(())
     }
 
 }
@@ -169,9 +172,14 @@ fn main() {
              c8.memory[PROG_ROM_RAM_BEGIN as usize + 2],
              c8.memory[PROG_ROM_RAM_BEGIN as usize + 3]);
 
-    c8.emulate_cycle();
-    c8.emulate_cycle();
-    c8.emulate_cycle();
-    c8.emulate_cycle();
+    loop {
+        match c8.emulate_cycle() {
+            Ok(_) => continue,
+            Err(e) => {
+                println!("{}", e);
+                break;
+            },
+        }
+    }
 }
 
