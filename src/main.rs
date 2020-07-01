@@ -124,9 +124,9 @@ impl Chip8 {
 
         // prepare common portions of opcode
         let     x:   u8  = ((self.opcode & 0x0F00) >> 8) as u8;
-        let mut vx:  u8  = self.v[x as usize];  // TODO: Is this actually a mutable reference?
+        //let mut vx:  u8  = self.v[x as usize];  // Can't do refs to vec elements like this.
         let     y:   u8  = ((self.opcode & 0x00F0) >> 4) as u8;
-        let mut vy:  u8  = self.v[y as usize];  // TODO: Is this actually a mutable reference?
+        //let mut vy:  u8  = &self.v[y as usize];  // Can't do refs to vec elements like this.
         let     n:   u8  = (self.opcode & 0x000F) as u8;
         let     nn:  u8  = (self.opcode & 0x00FF) as u8;
         let     nnn: u16 = self.opcode & 0x0FFF;
@@ -134,7 +134,7 @@ impl Chip8 {
         // decode opcode
         // https://wikipedia.org/wiki/CHIP-8#Opcode_table
         if 0x6000 == self.opcode & 0xF000 {  // 0x6XNN: set VX to NN
-            vx = nn;
+            self.v[x as usize] = nn;
             self.pc += 2;
         }
         else {
