@@ -78,9 +78,10 @@ impl Chip8 {
             draw_flag: false,
         };
         // call init
-        c8.init(0);
+        c8.init(42);
         c8
     }
+
 
     fn init (&mut self, rand_seed: u32) {
         // memory MEMORY_BYTES
@@ -99,10 +100,24 @@ impl Chip8 {
     }
 
 
+    fn load_rom_file (&mut self, path: &str) -> std::io::Result<()> {
+        self.init(42);
+        let mut f = std::fs::File::open(path);
+        // read the whole file
+        self.memory = std::fs::read(path)?;
+
+        Ok(())
+    }
+
 }
 
 
 fn main() {
     let mut c8 = Chip8::new();
-    c8.init(0);
+    c8.load_rom_file("Maze (alt) [David Winter, 199x].ch8")
+        .expect("Issue loading Chip-8 ROM file into VM memory");
+
+    println!("First few program bytes: {:#04x} {:#04x} {:#04x} {:#04x}",
+             c8.memory[0], c8.memory[1], c8.memory[2], c8.memory[3]);
 }
+
