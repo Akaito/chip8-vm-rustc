@@ -77,7 +77,8 @@ impl Chip8 {
             render_out: Vec::with_capacity(RENDER_WIDTH * RENDER_HEIGHT),
             draw_flag: false,
         };
-        // call init
+        for i in 0..MEMORY_BYTES { c8.memory.push(0); }
+        for i in 0..(RENDER_WIDTH * RENDER_HEIGHT) { c8.render_out.push(0); }
         c8.init(42);
         c8
     }
@@ -103,10 +104,55 @@ impl Chip8 {
     fn load_rom_file (&mut self, path: &str) -> std::io::Result<()> {
         self.init(42);
         let mut f = std::fs::File::open(path);
-        // read the whole file
-        self.memory = std::fs::read(path)?;
+        // read the whole file into a temp buffer
+        let rom = std::fs::read(path)?;
+        println!("Read {} bytes of rom data from file.", rom.len());
+        // place temp buffer's rom data into VM memory at the right location
+        for i in 0..rom.len() {
+            self.memory[PROG_ROM_RAM_BEGIN as usize + i] = rom[i];
+        }
 
         Ok(())
+    }
+
+
+    fn emulate_cycle (&mut self) {
+        // fetch opcode
+        self.opcode =
+            (self.memory[self.pc as usize    ] as u16) << 8 |
+            (self.memory[self.pc as usize + 1] as u16);
+
+        // prepare common portions of opcode
+        let     x:   u8  = ((self.opcode & 0x0F00) >> 8) as u8;
+        let mut vx:  u8  = self.v[x as usize];  // TODO: Is this actually a mutable reference?
+        let     y:   u8  = ((self.opcode & 0x00F0) >> 4) as u8;
+        let mut vy:  u8  = self.v[y as usize];  // TODO: Is this actually a mutable reference?
+        let     n:   u8  = (self.opcode & 0x000F) as u8;
+        let     nn:  u8  = (self.opcode & 0x00FF) as u8;
+        let     nnn: u16 = self.opcode & 0x0FFF;
+
+        // decode opcode
+        // https://wikipedia.org/wiki/CHIP-8#Opcode_table
+        if 0x6000 == self.opcode & 0xF000 {  // 0x6XNN: set VX to NN
+            vx = nn;
+            self.pc += 2;
+        }
+        else {
+            println!("Chip8: Bad opcode {:#06X} at address {:#06X} (ROM offset {:#06X}).",
+                self.opcode,
+                self.pc,
+                self.pc - PROG_ROM_RAM_BEGIN);
+        }
+
+        // update timers
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
+        if self.sound_timer > 0 {
+            // (beep)
+            self.sound_timer -= 1;
+            println!("  -- beep! --  ");  // temporary
+        }
     }
 
 }
@@ -117,7 +163,15 @@ fn main() {
     c8.load_rom_file("Maze (alt) [David Winter, 199x].ch8")
         .expect("Issue loading Chip-8 ROM file into VM memory");
 
-    println!("First few program bytes: {:#04x} {:#04x} {:#04x} {:#04x}",
-             c8.memory[0], c8.memory[1], c8.memory[2], c8.memory[3]);
+    println!("First few program bytes: {:#04X} {:#04X} {:#04X} {:#04X}",
+             c8.memory[PROG_ROM_RAM_BEGIN as usize + 0],
+             c8.memory[PROG_ROM_RAM_BEGIN as usize + 1],
+             c8.memory[PROG_ROM_RAM_BEGIN as usize + 2],
+             c8.memory[PROG_ROM_RAM_BEGIN as usize + 3]);
+
+    c8.emulate_cycle();
+    c8.emulate_cycle();
+    c8.emulate_cycle();
+    c8.emulate_cycle();
 }
 
