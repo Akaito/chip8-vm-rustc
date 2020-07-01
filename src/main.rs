@@ -3,6 +3,8 @@
 // Which itself is *heavily* based on Laurence Muller's tutorial at
 // http://www.multigesture.net/articles/how-to-write-an-emulator-chip-8-interpreter/
 
+use rand::Rng;
+
 
 const MEMORY_BYTES:   usize = 4096;
 const REGISTER_COUNT: usize = 16;
@@ -106,6 +108,7 @@ impl Chip8 {
         // read the whole file into a temp buffer
         let rom = std::fs::read(path)?;
         println!("Read {} bytes of rom data from file.", rom.len());
+
         // place temp buffer's rom data into VM memory at the right location
         for i in 0..rom.len() {
             self.memory[PROG_ROM_RAM_BEGIN as usize + i] = rom[i];
@@ -122,19 +125,71 @@ impl Chip8 {
             (self.memory[self.pc as usize + 1] as u16);
 
         // prepare common portions of opcode
-        let     x:   u8  = ((self.opcode & 0x0F00) >> 8) as u8;
+        let     x:   usize = ((self.opcode & 0x0F00) >> 8) as usize;
         //let mut vx:  u8  = self.v[x as usize];  // Can't do refs to vec elements like this.
-        let     y:   u8  = ((self.opcode & 0x00F0) >> 4) as u8;
+        let     y:   usize = ((self.opcode & 0x00F0) >> 4) as usize;
         //let mut vy:  u8  = &self.v[y as usize];  // Can't do refs to vec elements like this.
-        let     n:   u8  = (self.opcode & 0x000F) as u8;
-        let     nn:  u8  = (self.opcode & 0x00FF) as u8;
-        let     nnn: u16 = self.opcode & 0x0FFF;
+        let     n:   u8    = (self.opcode & 0x000F) as u8;
+        let     nn:  u8    = (self.opcode & 0x00FF) as u8;
+        let     nnn: u16   = self.opcode & 0x0FFF;
 
         // decode opcode
         // https://wikipedia.org/wiki/CHIP-8#Opcode_table
-        if 0x6000 == self.opcode & 0xF000 {  // 0x6XNN: set VX to NN
-            self.v[x as usize] = nn;
+        if 0x1000 == self.opcode & 0xF000 {  // 0x1NNN: jump to NNN
+            self.pc = nnn;
+        }
+        else if 0x3000 == self.opcode & 0xF000 {  // 0x3XNN
+            // skip next instruction if VX == NN
+            self.pc += if self.v[x] == nn {4} else {2};
+        }
+        else if 0x6000 == self.opcode & 0xF000 {  // 0x6XNN: set VX to NN
+            self.v[x] = nn;
             self.pc += 2;
+        }
+        else if 0x7000 == self.opcode & 0xF000 {  // 0x7XNN: add NN to VX
+            self.v[x] += nn;
+            self.pc += 2;
+        }
+        else if 0xA000 == self.opcode & 0xF000 {  // 0xANNN: I = NNN
+            self.i = nnn;
+            self.pc += 2;
+        }
+        else if 0xC000 == self.opcode & 0xF000 {  // 0xCXNN: VX = (rand & NN)
+            // TODO: Replace with a per-Chip8 random number generator.
+            let secret_number = rand::thread_rng().gen_range(0, 255);
+            self.v[x] = (secret_number as u8) & nn;
+            self.pc += 2;
+        }
+        else if 0xD000 == self.opcode & 0xF000 {  // 0xDXYN
+            // XOR-draw N rows of 8-bit-wide sprites from I
+            // at (VX, VY), (VX, VY+1), etc.
+            // VF set to 1 if a pixel is toggled off, otherwise 0.
+
+            self.v[0xF] = 0;  // clear collision flag
+
+            for sprite_tex_y in 0..n {
+                let sprite_byte = self.memory[(self.i + sprite_tex_y as u16) as usize];
+                for sprite_tex_x in 0..8 {
+                    // shift b1000'0000 right to current column
+                    if sprite_byte & (0x80 >> sprite_tex_x) != 0 {
+                        // rendering wraps on all edges
+                        // FIXME: 'attempt to multiply with overflow'
+                        let pixel_x =  (self.v[x] + sprite_tex_x) % (RENDER_WIDTH  as u8);
+                        let pixel_y = ((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8)) * (RENDER_WIDTH as u8);
+                        let pixel_index = (pixel_y + pixel_x) as usize;
+
+                        if self.render_out[pixel_index] != 0 {
+                            self.render_out[pixel_index] = 0;
+                            self.v[0xF] = 1;  // Collision!  Set flag.
+                        } else {
+                            self.render_out[pixel_index] = 1;
+                        }
+                    }
+                }
+            }
+
+            self.pc += 2;
+            self.draw_flag = true;
         }
         else {
             println!("Chip8: Bad opcode {:#06X} at address {:#06X} (ROM offset {:#06X}).",
