@@ -103,7 +103,6 @@ impl Chip8 {
 
     fn load_rom_file (&mut self, path: &str) -> std::io::Result<()> {
         self.init(42);
-        let mut f = std::fs::File::open(path);
         // read the whole file into a temp buffer
         let rom = std::fs::read(path)?;
         println!("Read {} bytes of rom data from file.", rom.len());
