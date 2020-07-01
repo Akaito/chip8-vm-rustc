@@ -43,18 +43,39 @@ impl Chip8 {
 
     fn new () -> Chip8 {
         // TODO
+        let mut c8 = Chip8 {
+            memory: Vec::with_capacity(MEMORY_BYTES),
+            v: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            i: 0,
+            pc: 0,
+            delay_timer: 0,
+            sound_timer: 0,
+            key_states: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            opcode: 0,
+            stack: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            sp: 0,
+            render_out: Vec::with_capacity(RENDER_WIDTH * RENDER_HEIGHT),
+            draw_flag: false,
+        };
         // call init
+        c8.init(0);
+        c8
     }
 
-    fn init (&self, rand_seed: u32) {
+    fn init (&mut self, rand_seed: u32) {
         // memory MEMORY_BYTES
-        for &byte in self.memory.iter() {
-            byte = 0u8;
-        }
+        for i in 0..self.memory.len() { self.memory[i] = 0; }
+        for i in 0..self.v.len() { self.v[i] = 0 }
         self.i  = 0x0000;
         self.pc = PROG_ROM_RAM_BEGIN;
         self.delay_timer = 0;
         self.sound_timer = 0;
+        for i in 0..self.key_states.len() { self.key_states[i] = 0; }
+        self.opcode = 0;
+        for i in 0..self.stack.len() { self.stack[i] = 0; }
+        self.sp = 0;
+        for i in 0..self.render_out.len() { self.render_out[i] = 0; }
+        self.draw_flag = false;
     }
 
 
@@ -62,5 +83,6 @@ impl Chip8 {
 
 
 fn main() {
-    let c8 = Chip8::new();
+    let mut c8 = Chip8::new();
+    c8.init(0);
 }
