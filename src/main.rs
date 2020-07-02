@@ -6,9 +6,12 @@
 use rand::Rng;
 
 extern crate sdl2;
+use sdl2::rect::{Point, Rect};
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::video::{Window, WindowContext};
+use sdl2::render::{Canvas, Texture, TextureCreator};
 //use sdl2::time::Duration;
 
 
@@ -50,6 +53,12 @@ const FONT_SET: [u8; 5 * 16] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0,  // E
     0xF0, 0x80, 0xF0, 0x80, 0x80,  // F
 ];
+
+
+// used by sdl2 / rendering
+const WINDOW_WIDTH:  u16 = 640;
+const WINDOW_HEIGHT: u16 = 320;
+const PIXEL_SIZE:    u32 = WINDOW_WIDTH as u32 / RENDER_WIDTH as u32;
 
 
 #[derive(Debug)]
@@ -134,6 +143,10 @@ impl Chip8 {
         self.opcode =
             (self.memory[self.pc as usize    ] as u16) << 8 |
             (self.memory[self.pc as usize + 1] as u16);
+            println!("Chip8: Opcode {:#06X} at address {:#06X} (ROM offset {:#06X}).",
+                self.opcode,
+                self.pc,
+                self.pc - PROG_ROM_RAM_BEGIN);
 
         // prepare common portions of opcode
         let     x:   usize = ((self.opcode & 0x0F00) >> 8) as usize;
@@ -188,8 +201,8 @@ impl Chip8 {
                         let pixel_x: u16 =  ((self.v[x] + sprite_tex_x) % (RENDER_WIDTH as u8)) as u16;
                         //let pixel_y = ((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8)) * (RENDER_WIDTH as u8);
                         let pixel_y: u16 = 
-                            ((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8))
-                            .wrapping_mul(RENDER_WIDTH as u8) as u16;
+                            (((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8)) as u16)
+                            .wrapping_mul(RENDER_WIDTH as u16);
                         let pixel_index = (pixel_y + pixel_x) as usize;
 
                         if self.render_out[pixel_index] != 0 {
@@ -243,22 +256,30 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let window = video_subsystem.window("CHIP-8", 640, 320)
+    let window = video_subsystem
+        .window("CHIP-8", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
         .position_centered()
         .build()
         .unwrap();
 
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas = window.into_canvas()
+        .target_texture()
+        //.present_vsync()
+        .build().unwrap();
 
-    canvas.set_draw_color(Color::RGB(0, 255, 255));
+    println!("Using SDL_Renderer \"{}\"", canvas.info().name);
+    canvas.set_draw_color(Color::RGB(0x00, 0x00, 0x00));
     canvas.clear();
     canvas.present();
+
+    let texture_creator: sdl2::render::TextureCreator<_> = canvas.texture_creator();
+
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut i = 0;
+    //let mut i = 0;
     'running: loop {
-        i = (i + 1) % 255;
-        canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
-        canvas.clear();
+        //i = (i + 1) % 255;
+        //canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
+        //canvas.clear();
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
@@ -268,12 +289,45 @@ fn main() {
                 _ => {}
             }
         }
-        // The rest of the game loop goes here...
 
-        canvas.present();
+        // CHIP-8 stuff
+        match c8.emulate_cycle() {
+            Ok(_) => {},
+            Err(e) => {
+                println!("{}", e);
+                break;
+            },
+        }
+
+        if c8.draw_flag {
+            canvas.clear();
+            c8.draw_flag = false;
+            //draw_pixel(&mut canvas, 1, 2);
+            for y in 0..RENDER_HEIGHT {
+                for x in 0..RENDER_WIDTH {
+                    let color: Color;
+                    if c8.render_out[y * RENDER_WIDTH + x] != 0 {
+                        color = Color::RGB(0xEF, 0xEF, 0xEF);
+                    } else {
+                        color = Color::RGB(0x40, 0x40, 0x40);
+                    }
+
+                    canvas.set_draw_color(color);
+                    canvas.fill_rect(Rect::new(
+                            (x as u32 * PIXEL_SIZE) as i32,
+                            (y as u32 * PIXEL_SIZE) as i32,
+                            PIXEL_SIZE,
+                            PIXEL_SIZE))
+                        .expect("Failed to fill_rect when drawing a CHIP-8 pixel.");
+                }
+            }
+            canvas.present();
+        }
+        // end CHIP-8 stuff
+
         //::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        ::std::thread::sleep(std::time::Duration::from_millis(16));
-    }
+        ::std::thread::sleep(std::time::Duration::from_millis(27));
+    }  // 'running loop
 
     /*/
     loop {
