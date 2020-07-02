@@ -21,6 +21,11 @@ const PROG_ROM_RAM_BEGIN: u16 = 0x200;
 const PROG_ROM_RAM_END:   u16 = 0xFFF;
 
 
+// XXXX    ..X.
+// X..X    .XX.
+// X..X    ..X.
+// X..X    ..X.
+// XXXX    .XXX
 const FONT_SET: [u8; 5 * 16] = [
     0xf0, 0x90, 0x90, 0x90, 0xf0,  // 0
     0x20, 0x60, 0x20, 0x20, 0x70,  // 1
@@ -174,8 +179,11 @@ impl Chip8 {
                     if sprite_byte & (0x80 >> sprite_tex_x) != 0 {
                         // rendering wraps on all edges
                         // FIXME: 'attempt to multiply with overflow'
-                        let pixel_x =  (self.v[x] + sprite_tex_x) % (RENDER_WIDTH  as u8);
-                        let pixel_y = ((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8)) * (RENDER_WIDTH as u8);
+                        let pixel_x: u16 =  ((self.v[x] + sprite_tex_x) % (RENDER_WIDTH as u8)) as u16;
+                        //let pixel_y = ((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8)) * (RENDER_WIDTH as u8);
+                        let pixel_y: u16 = 
+                            ((self.v[y] + sprite_tex_y) % (RENDER_HEIGHT as u8))
+                            .wrapping_mul(RENDER_WIDTH as u8) as u16;
                         let pixel_index = (pixel_y + pixel_x) as usize;
 
                         if self.render_out[pixel_index] != 0 {
