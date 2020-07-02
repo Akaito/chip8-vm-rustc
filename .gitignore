@@ -1,5 +1,8 @@
+/gnu-mingw
+/msvc
 /target
 
+*.dll
 .*.swp
 *.vim
 
